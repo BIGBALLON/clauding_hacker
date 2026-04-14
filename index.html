@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLAUDING // Spinner Verb Hunter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --green: #00ff41;
+    --green-dim: #00cc33;
+    --green-glow: #00ff4180;
+    --cyan: #00e5ff;
+    --cyan-dim: #00b8d4;
+    --magenta: #ff00ff;
+    --amber: #ffab00;
+    --red: #ff1744;
+    --bg: #0a0a0a;
+    --bg-card: #111111;
+    --border: #1a1a1a;
+    --text-dim: #555;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'JetBrains Mono', 'Share Tech Mono', monospace;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  /* ===== BOOT SEQUENCE ===== */
+  #boot-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.8s;
+  }
+
+  #boot-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #boot-text {
+    font-size: 12px;
+    color: var(--green);
+    white-space: pre;
+    line-height: 1.7;
+    text-shadow: 0 0 8px var(--green-glow);
+    max-width: 600px;
+    padding: 40px;
+  }
+
+  #boot-text .cursor {
+    display: inline-block;
+    width: 7px;
+    height: 13px;
+    background: var(--green);
+    animation: cursorBlink 0.6s step-end infinite;
+    vertical-align: middle;
+    box-shadow: 0 0 6px var(--green-glow);
+  }
+
+  /* ===== BACKGROUNDS & OVERLAYS ===== */
+  #matrix-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    opacity: 0.07;
+  }
+
+  #scanline {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 65, 0.015) 2px,
+      rgba(0, 255, 65, 0.015) 4px
+    );
+  }
+
+  #scanline::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 4px;
+    background: rgba(0, 255, 65, 0.1);
+    animation: scanMove 6s linear infinite;
+  }
+
+  @keyframes scanMove {
+    0% { top: -4px; }
+    100% { top: 100%; }
+  }
+
+  /* CRT vignette */
+  #vignette {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.6) 100%);
+  }
+
+  /* Random glitch bars */
+  .glitch-bar {
+    position: fixed;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    z-index: 4;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    animation: glitchBarFlash 0.15s linear forwards;
+  }
+
+  @keyframes glitchBarFlash {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Mouse trail */
+  .trail-dot {
+    position: fixed;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--green);
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 0.5s, transform 0.5s;
+  }
+
+  /* ===== HUD OVERLAY ===== */
+  .hud-corner {
+    position: fixed;
+    width: 40px;
+    height: 40px;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.15;
+  }
+
+  .hud-corner::before, .hud-corner::after {
+    content: '';
+    position: absolute;
+    background: var(--green);
+  }
+
+  .hud-tl { top: 12px; left: 12px; }
+  .hud-tl::before { top: 0; left: 0; width: 20px; height: 1px; }
+  .hud-tl::after { top: 0; left: 0; width: 1px; height: 20px; }
+
+  .hud-tr { top: 12px; right: 12px; }
+  .hud-tr::before { top: 0; right: 0; width: 20px; height: 1px; }
+  .hud-tr::after { top: 0; right: 0; width: 1px; height: 20px; }
+
+  .hud-bl { bottom: 12px; left: 12px; }
+  .hud-bl::before { bottom: 0; left: 0; width: 20px; height: 1px; }
+  .hud-bl::after { bottom: 0; left: 0; width: 1px; height: 20px; }
+
+  .hud-br { bottom: 12px; right: 12px; }
+  .hud-br::before { bottom: 0; right: 0; width: 20px; height: 1px; }
+  .hud-br::after { bottom: 0; right: 0; width: 1px; height: 20px; }
+
+  /* Targeting reticle around verb */
+  .reticle {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 300px; height: 100px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .reticle-corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: var(--green-dim);
+    border-style: solid;
+    opacity: 0.25;
+    transition: opacity 0.3s, border-color 0.3s;
+  }
+
+  .reticle-corner.tl { top: 0; left: 0; border-width: 1px 0 0 1px; }
+  .reticle-corner.tr { top: 0; right: 0; border-width: 1px 1px 0 0; }
+  .reticle-corner.bl { bottom: 0; left: 0; border-width: 0 0 1px 1px; }
+  .reticle-corner.br { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
+
+  .reticle.rare .reticle-corner { border-color: var(--magenta); opacity: 0.5; }
+  .reticle.legendary .reticle-corner { border-color: var(--amber); opacity: 0.7; }
+
+  .reticle-line-h {
+    position: absolute;
+    top: 50%;
+    height: 1px;
+    width: 8px;
+    background: var(--green-dim);
+    opacity: 0.2;
+  }
+
+  .reticle-line-h.l { left: -12px; }
+  .reticle-line-h.r { right: -12px; }
+
+  /* Side data streams */
+  .data-stream {
+    position: fixed;
+    top: 60px; bottom: 60px;
+    width: 50px;
+    z-index: 2;
+    pointer-events: none;
+    overflow: hidden;
+    opacity: 0.12;
+    font-size: 8px;
+    line-height: 1.4;
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .data-stream.left { left: 8px; text-align: left; }
+  .data-stream.right { right: 8px; text-align: right; }
+
+  .data-stream-inner {
+    animation: dataScroll 30s linear infinite;
+  }
+
+  @keyframes dataScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+
+  /* EQ visualizer */
+  .eq-container {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 20px;
+    margin-top: 12px;
+    justify-content: center;
+  }
+
+  .eq-bar {
+    width: 2px;
+    background: var(--green);
+    opacity: 0.4;
+    box-shadow: 0 0 4px var(--green-glow);
+    animation: eqBounce var(--eq-speed, 0.5s) ease-in-out infinite alternate;
+  }
+
+  @keyframes eqBounce {
+    0% { height: var(--eq-min, 2px); }
+    100% { height: var(--eq-max, 16px); }
+  }
+
+  /* Screen shake */
+  .screen-shake {
+    animation: shake 0.3s ease-out;
+  }
+
+  @keyframes shake {
+    0% { transform: translate(0); }
+    20% { transform: translate(-4px, 2px); }
+    40% { transform: translate(4px, -2px); }
+    60% { transform: translate(-2px, 1px); }
+    80% { transform: translate(2px, -1px); }
+    100% { transform: translate(0); }
+  }
+
+  /* Screen flash on catch */
+  #screen-flash {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.05s;
+  }
+
+  #screen-flash.flash {
+    opacity: 1;
+  }
+
+  /* ===== MAIN LAYOUT ===== */
+  .app {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .logo span {
+    color: var(--green);
+    text-shadow: 0 0 10px var(--green-glow);
+  }
+
+  .stats {
+    display: flex;
+    gap: 20px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    align-items: center;
+  }
+
+  .stat { color: var(--text-dim); }
+
+  .stat .val {
+    color: var(--cyan);
+    font-weight: 700;
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  }
+
+  .stat.rare .val { color: var(--magenta); text-shadow: 0 0 8px rgba(255, 0, 255, 0.4); }
+  .stat.legendary .val { color: var(--amber); text-shadow: 0 0 8px rgba(255, 171, 0, 0.4); }
+
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    min-height: 0;
+  }
+
+  .verb-display {
+    text-align: center;
+    margin-bottom: 40px;
+    position: relative;
+  }
+
+  .current-verb {
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 700;
+    color: var(--green);
+    text-shadow: 0 0 30px var(--green-glow), 0 0 60px rgba(0, 255, 65, 0.2);
+    letter-spacing: 2px;
+    transition: opacity 0.15s, transform 0.15s;
+    user-select: none;
+    animation: glitch 4s infinite;
+    position: relative;
+  }
+
+  .current-verb.rare {
+    color: var(--magenta);
+    text-shadow: 0 0 30px rgba(255, 0, 255, 0.5), 0 0 60px rgba(255, 0, 255, 0.2);
+  }
+
+  .current-verb.legendary {
+    color: var(--amber);
+    text-shadow: 0 0 30px rgba(255, 171, 0, 0.5), 0 0 80px rgba(255, 171, 0, 0.3);
+    animation: glitch 4s infinite, legendaryPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes legendaryPulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.4); }
+  }
+
+  @keyframes glitch {
+    0%, 92%, 100% { transform: translate(0); }
+    93% { transform: translate(-3px, 1px) skewX(-0.5deg); }
+    94% { transform: translate(3px, -1px) skewX(0.5deg); }
+    95% { transform: translate(-1px, 0); }
+    96% { transform: translate(0); }
+  }
+
+  .current-verb::before,
+  .current-verb::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+  }
+
+  .current-verb::before {
+    color: var(--cyan);
+    animation: glitchTop 3s infinite;
+    clip-path: inset(0 0 65% 0);
+  }
+
+  .current-verb::after {
+    color: var(--red);
+    animation: glitchBottom 3.5s infinite;
+    clip-path: inset(65% 0 0 0);
+  }
+
+  @keyframes glitchTop {
+    0%, 90%, 100% { opacity: 0; transform: translate(0); }
+    92% { opacity: 0.9; transform: translate(4px, 0); }
+    94% { opacity: 0; transform: translate(-4px, 0); }
+  }
+
+  @keyframes glitchBottom {
+    0%, 91%, 100% { opacity: 0; transform: translate(0); }
+    93% { opacity: 0.9; transform: translate(-4px, 0); }
+    95% { opacity: 0; transform: translate(4px, 0); }
+  }
+
+  .verb-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  .verb-meta .rarity-tag {
+    padding: 2px 8px;
+    border: 1px solid;
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+
+  .verb-meta .rarity-tag.common { border-color: var(--green-dim); color: var(--green-dim); }
+  .verb-meta .rarity-tag.rare { border-color: var(--magenta); color: var(--magenta); }
+  .verb-meta .rarity-tag.legendary { border-color: var(--amber); color: var(--amber); }
+
+  .catch-btn {
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 14px 48px;
+    cursor: crosshair;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .catch-btn:hover {
+    background: rgba(0, 255, 65, 0.06);
+    box-shadow: 0 0 25px rgba(0, 255, 65, 0.2), inset 0 0 25px rgba(0, 255, 65, 0.06);
+    border-color: var(--green);
+  }
+
+  .catch-btn:active {
+    transform: scale(0.96);
+    background: rgba(0, 255, 65, 0.12);
+  }
+
+  .catch-btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.12), transparent);
+    animation: btnSweep 2.5s infinite;
+  }
+
+  @keyframes btnSweep {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+
+  .catch-feedback {
+    position: fixed;
+    pointer-events: none;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    z-index: 101;
+    animation: feedbackFloat 1.4s ease-out forwards;
+  }
+
+  @keyframes feedbackFloat {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1.3); }
+  }
+
+  .progress-section {
+    width: 100%;
+    max-width: 500px;
+    margin-top: 30px;
+  }
+
+  .progress-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .progress-bar {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green-glow);
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .mode-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .mode-btn:hover, .mode-btn.active {
+    border-color: var(--green-dim);
+    color: var(--green);
+  }
+
+  footer {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  /* ===== COLLECTION DRAWER ===== */
+  .collection-drawer {
+    position: fixed;
+    bottom: 0; left: 0;
+    width: 100%; height: 60vh;
+    background: var(--bg);
+    border-top: 1px solid var(--green-dim);
+    z-index: 50;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  .collection-drawer.open { transform: translateY(0); }
+  .collection-drawer::-webkit-scrollbar { width: 4px; }
+  .collection-drawer::-webkit-scrollbar-track { background: var(--bg); }
+  .collection-drawer::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .drawer-header h2 {
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--green);
+  }
+
+  .close-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 10px;
+    padding: 4px 12px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+
+  .close-btn:hover { border-color: var(--red); color: var(--red); }
+
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 6px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .verb-card {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .verb-card.caught { border-color: var(--green-dim); color: var(--green); background: rgba(0, 255, 65, 0.02); }
+  .verb-card.caught.rare { border-color: var(--magenta); color: var(--magenta); background: rgba(255, 0, 255, 0.02); }
+  .verb-card.caught.legendary { border-color: var(--amber); color: var(--amber); background: rgba(255, 171, 0, 0.02); }
+
+  .verb-card .index {
+    font-size: 8px;
+    color: var(--text-dim);
+    opacity: 0.4;
+    margin-right: 6px;
+  }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: var(--bg-card);
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    padding: 10px 24px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 2px;
+    z-index: 200;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: center;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .toast.legendary {
+    border-color: var(--amber);
+    color: var(--amber);
+    box-shadow: 0 0 40px rgba(255, 171, 0, 0.3);
+  }
+
+  .speed-indicator {
+    position: fixed;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: var(--text-dim);
+    opacity: 0.25;
+    z-index: 2;
+  }
+
+  .particles {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: var(--green);
+    border-radius: 50%;
+  }
+
+  .keyboard-hint {
+    position: fixed;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    opacity: 0.25;
+    z-index: 2;
+  }
+
+  .keyboard-hint kbd {
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    font-family: inherit;
+    font-size: 9px;
+  }
+
+  /* ===== HELP BUTTON ===== */
+  .help-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .help-btn:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.2), inset 0 0 12px rgba(0, 229, 255, 0.05);
+  }
+
+  .help-btn.active {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+  }
+
+  .help-btn::after {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    right: -1px; bottom: -1px;
+    border: 1px solid var(--cyan);
+    opacity: 0;
+    transform: scale(1.4);
+    transition: all 0.3s;
+  }
+
+  .help-btn:hover::after { opacity: 0.3; transform: scale(1.1); }
+
+  /* ===== HELP OVERLAY ===== */
+  .help-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.88);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s, visibility 0.4s;
+    backdrop-filter: blur(6px);
+  }
+
+  .help-overlay.open { opacity: 1; visibility: visible; }
+
+  .help-panel {
+    width: 520px;
+    max-width: 90vw;
+    max-height: 80vh;
+    border: 1px solid var(--cyan-dim);
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    transform: scale(0.8) translateY(20px);
+    opacity: 0;
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s;
+  }
+
+  .help-overlay.open .help-panel { transform: scale(1) translateY(0); opacity: 1; }
+
+  .help-overlay.closing .help-panel {
+    transform: scale(0.85) translateY(-20px);
+    opacity: 0;
+    transition: transform 0.35s cubic-bezier(0.55, 0, 1, 0.45), opacity 0.3s;
+  }
+
+  .help-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent 0%, rgba(0, 229, 255, 0.03) 50%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .help-panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 50%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    animation: helpScanLine 3s linear infinite;
+  }
+
+  @keyframes helpScanLine {
+    0% { left: -50%; }
+    100% { left: 100%; }
+  }
+
+  .help-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .help-header-title {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--cyan);
+    text-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .help-header-title .blink {
+    display: inline-block;
+    width: 6px;
+    height: 12px;
+    background: var(--cyan);
+    animation: cursorBlink 0.6s step-end infinite;
+    box-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+  }
+
+  @keyframes cursorBlink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  .help-close-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 10px;
+    padding: 3px 10px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: all 0.25s;
+  }
+
+  .help-close-btn:hover {
+    border-color: var(--red);
+    color: var(--red);
+    box-shadow: 0 0 10px rgba(255, 23, 68, 0.2);
+  }
+
+  .help-body {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(80vh - 50px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--bg);
+  }
+
+  .help-body::-webkit-scrollbar { width: 3px; }
+  .help-body::-webkit-scrollbar-track { background: var(--bg); }
+  .help-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .help-section {
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.4s ease;
+  }
+
+  .help-overlay.open .help-section.visible { opacity: 1; transform: translateX(0); }
+
+  .help-section-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--green);
+    text-shadow: 0 0 8px var(--green-glow);
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .help-line {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.8;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+    margin-left: 2px;
+  }
+
+  .help-line .hl { color: var(--green); }
+  .help-line .hl-cyan { color: var(--cyan); }
+  .help-line .hl-magenta { color: var(--magenta); }
+  .help-line .hl-amber { color: var(--amber); }
+
+  .help-line .key {
+    display: inline-block;
+    border: 1px solid var(--border);
+    padding: 0 5px;
+    font-size: 9px;
+    color: var(--cyan);
+    background: rgba(0, 229, 255, 0.03);
+    margin: 0 2px;
+    line-height: 1.6;
+    vertical-align: middle;
+  }
+
+  .help-corner { position: absolute; width: 8px; height: 8px; border-color: var(--cyan-dim); border-style: solid; opacity: 0.5; }
+  .help-corner.tl { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  .help-corner.tr { top: -1px; right: -1px; border-width: 1px 1px 0 0; }
+  .help-corner.bl { bottom: -1px; left: -1px; border-width: 0 0 1px 1px; }
+  .help-corner.br { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+  .help-footer {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-align: center;
+    opacity: 0.5;
+  }
+
+  /* Legendary full screen ring burst */
+  .legendary-ring {
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 10px; height: 10px;
+    border: 2px solid var(--amber);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 99;
+    animation: ringBurst 0.8s ease-out forwards;
+    box-shadow: 0 0 20px rgba(255, 171, 0, 0.5);
+  }
+
+  @keyframes ringBurst {
+    0% { width: 10px; height: 10px; opacity: 1; border-width: 3px; }
+    100% { width: 600px; height: 600px; opacity: 0; border-width: 1px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Boot sequence -->
+<div id="boot-screen">
+  <div id="boot-text"></div>
+</div>
+
+<canvas id="matrix-bg"></canvas>
+<div id="scanline"></div>
+<div id="vignette"></div>
+<div class="particles" id="particles"></div>
+<div id="screen-flash"></div>
+
+<!-- HUD corners -->
+<div class="hud-corner hud-tl"></div>
+<div class="hud-corner hud-tr"></div>
+<div class="hud-corner hud-bl"></div>
+<div class="hud-corner hud-br"></div>
+
+<!-- Side data streams -->
+<div class="data-stream left" id="dataStreamL"><div class="data-stream-inner" id="dataStreamLInner"></div></div>
+<div class="data-stream right" id="dataStreamR"><div class="data-stream-inner" id="dataStreamRInner"></div></div>
+
+<div class="app" id="app">
+  <header>
+    <div class="logo">
+      <span>CLAUDING</span> // VERB_HUNTER v1.0
+    </div>
+    <div class="stats">
+      <div class="stat">CAUGHT <span class="val" id="totalCaught">0</span><span style="color:#333">/187</span></div>
+      <div class="stat rare">RARE <span class="val" id="rareCaught">0</span></div>
+      <div class="stat legendary">LEGEND <span class="val" id="legendaryCaught">0</span></div>
+      <button class="help-btn" id="helpBtn" onclick="toggleHelp()" title="HOW TO PLAY">?</button>
+    </div>
+  </header>
+
+  <div class="main-area">
+    <div class="verb-display">
+      <div class="reticle" id="reticle">
+        <div class="reticle-corner tl"></div>
+        <div class="reticle-corner tr"></div>
+        <div class="reticle-corner bl"></div>
+        <div class="reticle-corner br"></div>
+        <div class="reticle-line-h l"></div>
+        <div class="reticle-line-h r"></div>
+      </div>
+      <div class="current-verb" id="currentVerb" data-text="Initializing...">Initializing...</div>
+      <div class="verb-meta">
+        <span class="rarity-tag common" id="rarityTag">COMMON</span>
+      </div>
+      <div class="eq-container" id="eqContainer"></div>
+    </div>
+
+    <button class="catch-btn" id="catchBtn" onclick="catchVerb()">[ CATCH ]</button>
+
+    <div class="progress-section">
+      <div class="progress-bar-wrap">
+        <span>PROGRESS</span>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <span id="progressText">0%</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="mode-btn active" onclick="setSpeed('normal', this)">NORMAL</button>
+      <button class="mode-btn" onclick="setSpeed('fast', this)">FAST</button>
+      <button class="mode-btn" onclick="setSpeed('insane', this)">INSANE</button>
+      <button class="mode-btn" onclick="toggleCollection()" id="collectionBtn">COLLECTION</button>
+    </div>
+  </div>
+
+  <footer>
+    <span>SYS.UPTIME <span id="uptime">00:00:00</span></span>
+    <span>SPEED: <span id="speedLabel">NORMAL</span> // CYCLE: <span id="cycleCount">0</span></span>
+    <span>187 VERBS INDEXED</span>
+  </footer>
+</div>
+
+<div class="speed-indicator" id="speedIndicator">NORMAL</div>
+<div class="keyboard-hint"><kbd>SPACE</kbd> CATCH &nbsp; <kbd>C</kbd> COLLECTION &nbsp; <kbd>H</kbd> HELP &nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> SPEED</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Help overlay -->
+<div class="help-overlay" id="helpOverlay" onclick="onOverlayClick(event)">
+  <div class="help-panel" id="helpPanel">
+    <div class="help-corner tl"></div>
+    <div class="help-corner tr"></div>
+    <div class="help-corner bl"></div>
+    <div class="help-corner br"></div>
+    <div class="help-header">
+      <div class="help-header-title">// SYSTEM.MANUAL <span class="blink"></span></div>
+      <button class="help-close-btn" onclick="toggleHelp()">[ X ]</button>
+    </div>
+    <div class="help-body">
+      <div class="help-section" data-delay="0">
+        <div class="help-section-title"><span>></span> MISSION BRIEF</div>
+        <div class="help-line">
+          Claude Code displays <span class="hl">187</span> unique spinner verbs while processing tasks.<br>
+          Your mission: <span class="hl">catch them all</span>.
+        </div>
+      </div>
+      <div class="help-section" data-delay="100">
+        <div class="help-section-title"><span>></span> HOW TO HUNT</div>
+        <div class="help-line">
+          Verbs <span class="hl-cyan">cycle randomly</span> on the center of the screen.<br>
+          See one you want? Press <span class="key">SPACE</span> or click <span class="hl">[ CATCH ]</span> to grab it.<br>
+          Each verb can only be caught once. Duplicates are ignored.
+        </div>
+      </div>
+      <div class="help-section" data-delay="200">
+        <div class="help-section-title"><span>></span> RARITY SYSTEM</div>
+        <div class="help-line">
+          <span class="hl">COMMON</span> — Standard verbs, green glow<br>
+          <span class="hl-magenta">RARE</span> — Uncommon verbs, magenta glow, 26 total<br>
+          <span class="hl-amber">LEGENDARY</span> — Mythic verbs, golden glow, only 10 exist
+        </div>
+      </div>
+      <div class="help-section" data-delay="300">
+        <div class="help-section-title"><span>></span> SPEED MODES</div>
+        <div class="help-line">
+          <span class="key">1</span> NORMAL — 1.8s cycle, beginner friendly<br>
+          <span class="key">2</span> FAST — 0.8s cycle, test your reflexes<br>
+          <span class="key">3</span> INSANE — 0.3s cycle, ultimate challenge
+        </div>
+      </div>
+      <div class="help-section" data-delay="400">
+        <div class="help-section-title"><span>></span> KEYBINDINGS</div>
+        <div class="help-line">
+          <span class="key">SPACE</span> Catch the current verb<br>
+          <span class="key">C</span> Toggle collection panel<br>
+          <span class="key">H</span> Toggle this help panel<br>
+          <span class="key">ESC</span> Close any open panel
+        </div>
+      </div>
+      <div class="help-section" data-delay="500">
+        <div class="help-section-title"><span>></span> DATA PERSISTENCE</div>
+        <div class="help-line">
+          Your collection is auto-saved to <span class="hl-cyan">localStorage</span>.<br>
+          Close the page and come back — your progress stays intact.
+        </div>
+      </div>
+    </div>
+    <div class="help-footer">PRESS <span style="color:var(--cyan)">H</span> OR <span style="color:var(--cyan)">?</span> TO TOGGLE // CLAUDING v1.0</div>
+  </div>
+</div>
+
+<div class="collection-drawer" id="collectionDrawer">
+  <div class="drawer-header">
+    <h2>// Collection Log</h2>
+    <button class="close-btn" onclick="toggleCollection()">[ ESC ]</button>
+  </div>
+  <div class="collection-grid" id="collectionGrid"></div>
+</div>
+
+<script>
+const VERBS = [
+  "Accomplishing","Actioning","Actualizing","Architecting","Baking","Beaming","Beboppin'",
+  "Befuddling","Billowing","Blanching","Bloviating","Boogieing","Boondoggling","Booping",
+  "Bootstrapping","Brewing","Bunning","Burrowing","Calculating","Canoodling","Caramelizing",
+  "Cascading","Catapulting","Cerebrating","Channeling","Channelling","Choreographing","Churning",
+  "Clauding","Coalescing","Cogitating","Combobulating","Composing","Computing","Concocting",
+  "Considering","Contemplating","Cooking","Crafting","Creating","Crunching","Crystallizing",
+  "Cultivating","Deciphering","Deliberating","Determining","Dilly-dallying","Discombobulating",
+  "Doing","Doodling","Drizzling","Ebbing","Effecting","Elucidating","Embellishing","Enchanting",
+  "Envisioning","Evaporating","Fermenting","Fiddle-faddling","Finagling","Flambéing",
+  "Flibbertigibbeting","Flowing","Flummoxing","Fluttering","Forging","Forming","Frolicking",
+  "Frosting","Gallivanting","Galloping","Garnishing","Generating","Gesticulating","Germinating",
+  "Gitifying","Grooving","Gusting","Harmonizing","Hashing","Hatching","Herding","Honking",
+  "Hullaballooing","Hyperspacing","Ideating","Imagining","Improvising","Incubating","Inferring",
+  "Infusing","Ionizing","Jitterbugging","Julienning","Kneading","Leavening","Levitating",
+  "Lollygagging","Manifesting","Marinating","Meandering","Metamorphosing","Misting","Moonwalking",
+  "Moseying","Mulling","Mustering","Musing","Nebulizing","Nesting","Newspapering","Noodling",
+  "Nucleating","Orbiting","Orchestrating","Osmosing","Perambulating","Percolating","Perusing",
+  "Philosophising","Photosynthesizing","Pollinating","Pondering","Pontificating","Pouncing",
+  "Precipitating","Prestidigitating","Processing","Proofing","Propagating","Puttering","Puzzling",
+  "Quantumizing","Razzle-dazzling","Razzmatazzing","Recombobulating","Reticulating","Roosting",
+  "Ruminating","Sautéing","Scampering","Schlepping","Scurrying","Seasoning","Shenaniganing",
+  "Shimmying","Simmering","Skedaddling","Sketching","Slithering","Smooshing","Sock-hopping",
+  "Spelunking","Spinning","Sprouting","Stewing","Sublimating","Swirling","Swooping","Symbioting",
+  "Synthesizing","Tempering","Thinking","Thundering","Tinkering","Tomfoolering","Topsy-turvying",
+  "Transfiguring","Transmuting","Twisting","Undulating","Unfurling","Unravelling","Vibing",
+  "Waddling","Wandering","Warping","Whatchamacalliting","Whirlpooling","Whirring","Whisking",
+  "Wibbling","Working","Wrangling","Zesting","Zigzagging"
+];
+
+const LEGENDARY = new Set([
+  "Clauding","Combobulating","Discombobulating","Recombobulating","Flibbertigibbeting",
+  "Prestidigitating","Whatchamacalliting","Hyperspacing","Quantumizing","Razzmatazzing"
+]);
+
+const RARE = new Set([
+  "Beboppin'","Flambéing","Sautéing","Hullaballooing","Topsy-turvying","Fiddle-faddling",
+  "Dilly-dallying","Razzle-dazzling","Sock-hopping","Moonwalking","Jitterbugging",
+  "Boondoggling","Shenaniganing","Tomfoolering","Symbioting","Photosynthesizing",
+  "Philosophising","Perambulating","Osmosing","Nebulizing","Metamorphosing","Gitifying",
+  "Gesticulating","Gallivanting","Flummoxing","Bloviating"
+]);
+
+let caught = new Set();
+let currentVerb = '';
+let cycleInterval;
+let cycleCount = 0;
+let speeds = { normal: 1800, fast: 800, insane: 300 };
+let currentSpeed = 'normal';
+let startTime = Date.now();
+let booted = false;
+
+function getRarity(verb) {
+  if (LEGENDARY.has(verb)) return 'legendary';
+  if (RARE.has(verb)) return 'rare';
+  return 'common';
+}
+
+// ===== BOOT SEQUENCE =====
+const BOOT_LINES = [
+  { text: 'CLAUDING VERB_HUNTER v1.0', delay: 0 },
+  { text: '(c) 2025 // ALL RIGHTS REVERSED', delay: 40 },
+  { text: '', delay: 80 },
+  { text: '> Initializing matrix renderer.......... OK', delay: 120 },
+  { text: '> Loading verb database [187 entries]... OK', delay: 200 },
+  { text: '> Calibrating rarity engine............ OK', delay: 300 },
+  { text: '> LEGENDARY verbs detected: 10', delay: 380 },
+  { text: '> RARE verbs detected: 26', delay: 420 },
+  { text: '> Mounting HUD overlay................. OK', delay: 480 },
+  { text: '> Establishing localStorage link....... OK', delay: 560 },
+  { text: '> Spawning particle system............. OK', delay: 620 },
+  { text: '> Arming glitch subsystem.............. OK', delay: 700 },
+  { text: '', delay: 760 },
+  { text: '> ALL SYSTEMS NOMINAL', delay: 820 },
+  { text: '> READY TO HUNT', delay: 900 },
+  { text: '', delay: 960 },
+  { text: '> Launching interface...', delay: 1020 },
+];
+
+function runBootSequence() {
+  const bootText = document.getElementById('boot-text');
+  const bootScreen = document.getElementById('boot-screen');
+  let currentLine = 0;
+
+  function typeLine() {
+    if (currentLine >= BOOT_LINES.length) {
+      setTimeout(() => {
+        bootScreen.classList.add('fade-out');
+        setTimeout(() => {
+          bootScreen.style.display = 'none';
+          booted = true;
+          startGame();
+        }, 800);
+      }, 400);
+      return;
+    }
+
+    const line = BOOT_LINES[currentLine];
+    const lineEl = document.createElement('div');
+    const text = line.text;
+
+    if (text.includes('OK')) {
+      const parts = text.split('OK');
+      lineEl.innerHTML = parts[0] + '<span style="color:var(--cyan);text-shadow:0 0 8px rgba(0,229,255,0.4)">OK</span>';
+    } else if (text.includes('NOMINAL') || text.includes('READY TO HUNT')) {
+      lineEl.style.color = 'var(--cyan)';
+      lineEl.style.textShadow = '0 0 10px rgba(0,229,255,0.4)';
+      lineEl.textContent = text;
+    } else if (text.includes('LEGENDARY')) {
+      lineEl.innerHTML = text.replace('LEGENDARY', '<span style="color:var(--amber);text-shadow:0 0 8px rgba(255,171,0,0.4)">LEGENDARY</span>');
+    } else if (text.includes('RARE')) {
+      lineEl.innerHTML = text.replace('RARE', '<span style="color:var(--magenta);text-shadow:0 0 8px rgba(255,0,255,0.4)">RARE</span>');
+    } else {
+      lineEl.textContent = text;
+    }
+
+    bootText.appendChild(lineEl);
+    currentLine++;
+
+    const nextDelay = currentLine < BOOT_LINES.length
+      ? BOOT_LINES[currentLine].delay - line.delay
+      : 300;
+    setTimeout(typeLine, nextDelay);
+  }
+
+  typeLine();
+}
+
+// ===== MOUSE TRAIL =====
+const trailDots = [];
+const TRAIL_LENGTH = 12;
+
+document.addEventListener('mousemove', (e) => {
+  const dot = document.createElement('div');
+  dot.className = 'trail-dot';
+  dot.style.left = e.clientX + 'px';
+  dot.style.top = e.clientY + 'px';
+  dot.style.boxShadow = '0 0 6px var(--green-glow)';
+  document.body.appendChild(dot);
+  trailDots.push(dot);
+
+  requestAnimationFrame(() => {
+    dot.style.opacity = '0';
+    dot.style.transform = 'scale(0)';
+  });
+
+  setTimeout(() => {
+    dot.remove();
+    trailDots.shift();
+  }, 500);
+
+  if (trailDots.length > TRAIL_LENGTH) {
+    const old = trailDots.shift();
+    old.remove();
+  }
+});
+
+// ===== RANDOM GLITCH BARS =====
+function spawnGlitchBar() {
+  if (!booted) return;
+  const bar = document.createElement('div');
+  bar.className = 'glitch-bar';
+  bar.style.top = Math.random() * 100 + '%';
+  bar.style.height = (1 + Math.random() * 3) + 'px';
+
+  const colors = ['var(--green)', 'var(--cyan)', 'var(--magenta)'];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  bar.style.background = `linear-gradient(90deg, transparent, ${color}, transparent)`;
+  bar.style.opacity = (0.3 + Math.random() * 0.5).toString();
+
+  document.body.appendChild(bar);
+  setTimeout(() => bar.remove(), 200);
+}
+
+setInterval(spawnGlitchBar, 2000 + Math.random() * 3000);
+setInterval(() => {
+  if (Math.random() > 0.7) {
+    for (let i = 0; i < 3; i++) setTimeout(spawnGlitchBar, i * 50);
+  }
+}, 5000);
+
+// ===== DATA STREAMS =====
+function initDataStreams() {
+  const hexChars = '0123456789ABCDEF';
+  function genHex(n) { let s = ''; for (let i = 0; i < n; i++) s += hexChars[Math.floor(Math.random() * 16)]; return s; }
+  function genLine() {
+    const types = [
+      () => '0x' + genHex(4),
+      () => genHex(2) + ':' + genHex(2),
+      () => (Math.random() > 0.5 ? '>>>' : '<<<'),
+      () => '#' + genHex(3),
+      () => '...',
+    ];
+    return types[Math.floor(Math.random() * types.length)]();
+  }
+
+  let leftContent = '', rightContent = '';
+  for (let i = 0; i < 200; i++) {
+    leftContent += genLine() + '\n';
+    rightContent += genLine() + '\n';
+  }
+
+  document.getElementById('dataStreamLInner').textContent = leftContent + leftContent;
+  document.getElementById('dataStreamRInner').textContent = rightContent + rightContent;
+}
+
+// ===== EQ VISUALIZER =====
+function initEQ() {
+  const container = document.getElementById('eqContainer');
+  for (let i = 0; i < 24; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'eq-bar';
+    bar.style.setProperty('--eq-speed', (0.3 + Math.random() * 0.5) + 's');
+    bar.style.setProperty('--eq-min', (1 + Math.random() * 3) + 'px');
+    bar.style.setProperty('--eq-max', (6 + Math.random() * 14) + 'px');
+    bar.style.animationDelay = (Math.random() * -1) + 's';
+    container.appendChild(bar);
+  }
+}
+
+// ===== GAME LOGIC =====
+function nextVerb() {
+  const verb = VERBS[Math.floor(Math.random() * VERBS.length)];
+  currentVerb = verb;
+  cycleCount++;
+
+  const el = document.getElementById('currentVerb');
+  const tag = document.getElementById('rarityTag');
+  const reticle = document.getElementById('reticle');
+  const rarity = getRarity(verb);
+
+  el.style.opacity = '0';
+  setTimeout(() => {
+    el.textContent = verb + '...';
+    el.setAttribute('data-text', verb + '...');
+    el.className = 'current-verb ' + rarity;
+    tag.className = 'rarity-tag ' + rarity;
+    tag.textContent = rarity.toUpperCase();
+    reticle.className = 'reticle ' + rarity;
+    el.style.opacity = '1';
+  }, 60);
+
+  document.getElementById('cycleCount').textContent = cycleCount;
+}
+
+function screenShake() {
+  const app = document.getElementById('app');
+  app.classList.add('screen-shake');
+  setTimeout(() => app.classList.remove('screen-shake'), 300);
+}
+
+function screenFlash(color) {
+  const flash = document.getElementById('screen-flash');
+  flash.style.background = color;
+  flash.classList.add('flash');
+  setTimeout(() => flash.classList.remove('flash'), 80);
+}
+
+function spawnLegendaryRing() {
+  const ring = document.createElement('div');
+  ring.className = 'legendary-ring';
+  document.body.appendChild(ring);
+  setTimeout(() => ring.remove(), 800);
+  setTimeout(() => {
+    const ring2 = document.createElement('div');
+    ring2.className = 'legendary-ring';
+    document.body.appendChild(ring2);
+    setTimeout(() => ring2.remove(), 800);
+  }, 150);
+}
+
+function catchVerb() {
+  if (!currentVerb || caught.has(currentVerb)) {
+    if (caught.has(currentVerb)) showToast('ALREADY IN COLLECTION', false);
+    return;
+  }
+
+  caught.add(currentVerb);
+  const rarity = getRarity(currentVerb);
+
+  screenShake();
+  spawnParticles(window.innerWidth / 2, window.innerHeight / 2, rarity);
+  showFeedback(currentVerb, rarity);
+
+  if (rarity === 'legendary') {
+    screenFlash('rgba(255, 171, 0, 0.15)');
+    spawnLegendaryRing();
+    showToast('LEGENDARY CATCH: ' + currentVerb + '!', true);
+    for (let i = 0; i < 3; i++) setTimeout(spawnGlitchBar, i * 60);
+  } else if (rarity === 'rare') {
+    screenFlash('rgba(255, 0, 255, 0.08)');
+    showToast('RARE: ' + currentVerb, false);
+  } else {
+    screenFlash('rgba(0, 255, 65, 0.06)');
+  }
+
+  updateStats();
+  updateCollection();
+  saveCaught();
+}
+
+function showFeedback(verb, rarity) {
+  const el = document.createElement('div');
+  el.className = 'catch-feedback';
+  const colors = { common: '#00ff41', rare: '#ff00ff', legendary: '#ffab00' };
+  el.style.color = colors[rarity];
+  el.style.textShadow = `0 0 30px ${colors[rarity]}`;
+  el.textContent = '+ ' + verb;
+  el.style.left = (window.innerWidth / 2 - 100) + 'px';
+  el.style.top = (window.innerHeight / 2 - 80) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+
+function showToast(msg, isLegendary) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isLegendary ? ' legendary' : '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+function updateStats() {
+  document.getElementById('totalCaught').textContent = caught.size;
+  let rareCount = 0, legendCount = 0;
+  caught.forEach(v => {
+    if (LEGENDARY.has(v)) legendCount++;
+    else if (RARE.has(v)) rareCount++;
+  });
+  document.getElementById('rareCaught').textContent = rareCount;
+  document.getElementById('legendaryCaught').textContent = legendCount;
+  const pct = Math.round((caught.size / 187) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = pct + '%';
+}
+
+function updateCollection() {
+  const grid = document.getElementById('collectionGrid');
+  grid.innerHTML = '';
+  VERBS.forEach((v, i) => {
+    const card = document.createElement('div');
+    const isCaught = caught.has(v);
+    const rarity = getRarity(v);
+    card.className = 'verb-card' + (isCaught ? ' caught ' + rarity : '');
+    card.innerHTML = `<span class="index">${String(i + 1).padStart(3, '0')}</span>${isCaught ? v : '???'}`;
+    grid.appendChild(card);
+  });
+}
+
+function setSpeed(speed, btn) {
+  currentSpeed = speed;
+  clearInterval(cycleInterval);
+  cycleInterval = setInterval(nextVerb, speeds[speed]);
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('speedLabel').textContent = speed.toUpperCase();
+  document.getElementById('speedIndicator').textContent = speed.toUpperCase();
+}
+
+function toggleCollection() {
+  const d = document.getElementById('collectionDrawer');
+  d.classList.toggle('open');
+  updateCollection();
+}
+
+let helpOpen = false;
+
+function toggleHelp() {
+  const overlay = document.getElementById('helpOverlay');
+  const btn = document.getElementById('helpBtn');
+
+  if (!helpOpen) {
+    overlay.classList.remove('closing');
+    overlay.classList.add('open');
+    btn.classList.add('active');
+    helpOpen = true;
+    const sections = overlay.querySelectorAll('.help-section');
+    sections.forEach((sec, i) => {
+      const delay = parseInt(sec.getAttribute('data-delay')) || i * 100;
+      setTimeout(() => sec.classList.add('visible'), 80 + delay);
+    });
+  } else {
+    overlay.classList.add('closing');
+    btn.classList.remove('active');
+    helpOpen = false;
+    const sections = overlay.querySelectorAll('.help-section');
+    sections.forEach(sec => sec.classList.remove('visible'));
+    setTimeout(() => overlay.classList.remove('open', 'closing'), 400);
+  }
+}
+
+function onOverlayClick(e) {
+  if (e.target === document.getElementById('helpOverlay')) toggleHelp();
+}
+
+function spawnParticles(x, y, rarity) {
+  const container = document.getElementById('particles');
+  const colors = { common: '#00ff41', rare: '#ff00ff', legendary: '#ffab00' };
+  const color = colors[rarity];
+  const count = rarity === 'legendary' ? 40 : rarity === 'rare' ? 30 : 20;
+
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.background = color;
+    p.style.boxShadow = `0 0 8px ${color}`;
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+
+    const size = 1 + Math.random() * 3;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+
+    const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
+    const dist = 50 + Math.random() * 120;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+    const dur = 0.6 + Math.random() * 0.8;
+
+    p.style.transition = `all ${dur}s cubic-bezier(0.25, 1, 0.5, 1)`;
+    container.appendChild(p);
+
+    requestAnimationFrame(() => {
+      p.style.left = (x + dx) + 'px';
+      p.style.top = (y + dy) + 'px';
+      p.style.opacity = '0';
+    });
+
+    setTimeout(() => p.remove(), dur * 1000 + 100);
+  }
+}
+
+function updateUptime() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  document.getElementById('uptime').textContent = `${h}:${m}:${sec}`;
+}
+
+function saveCaught() {
+  try { localStorage.setItem('clauding_caught', JSON.stringify([...caught])); } catch(e) {}
+}
+
+function loadCaught() {
+  try {
+    const data = localStorage.getItem('clauding_caught');
+    if (data) { caught = new Set(JSON.parse(data)); updateStats(); }
+  } catch(e) {}
+}
+
+function initMatrix() {
+  const canvas = document.getElementById('matrix-bg');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()_+-=[]{}|;:,./<>?~`';
+  const fontSize = 12;
+  const columns = Math.floor(canvas.width / fontSize);
+  const drops = Array(columns).fill(1);
+
+  function drawMatrix() {
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.04)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ff41';
+    ctx.font = fontSize + 'px monospace';
+
+    for (let i = 0; i < drops.length; i++) {
+      const char = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+      if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+
+  setInterval(drawMatrix, 50);
+  window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+}
+
+function startGame() {
+  loadCaught();
+  nextVerb();
+  cycleInterval = setInterval(nextVerb, speeds.normal);
+  setInterval(updateUptime, 1000);
+  updateCollection();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!booted) return;
+  if (e.code === 'Space') { e.preventDefault(); catchVerb(); }
+  if (e.key === 'c' || e.key === 'C') { if (!helpOpen) toggleCollection(); }
+  if (e.key === 'h' || e.key === 'H') toggleHelp();
+  if (e.key === '1') setSpeed('normal', document.querySelectorAll('.mode-btn')[0]);
+  if (e.key === '2') setSpeed('fast', document.querySelectorAll('.mode-btn')[1]);
+  if (e.key === '3') setSpeed('insane', document.querySelectorAll('.mode-btn')[2]);
+  if (e.key === 'Escape') {
+    if (helpOpen) toggleHelp();
+    else document.getElementById('collectionDrawer').classList.remove('open');
+  }
+});
+
+initMatrix();
+initDataStreams();
+initEQ();
+runBootSequence();
+</script>
+
+</body>
+</html>
